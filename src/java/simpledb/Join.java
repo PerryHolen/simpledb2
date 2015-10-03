@@ -12,10 +12,12 @@ public class Join extends Operator {
     private DbIterator child1;
     private DbIterator child2;
     private DbIterator[] children;
+    private Tuple currLeft;
+
     /**
      * Constructor. Accepts to children to join and the predicate to join them
      * on
-     * 
+     *
      * @param p
      *            The predicate to use to join the children
      * @param child1_
@@ -30,6 +32,7 @@ public class Join extends Operator {
         children = new DbIterator[2];
         children[0] = child1;
         children[1] = child2;
+        currLeft = null;
     }
 
     public JoinPredicate getJoinPredicate() {
@@ -64,20 +67,21 @@ public class Join extends Operator {
 
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
-        super.open();
         child1.open();
         child2.open();
+        super.open();
     }
 
     public void close() {
-        super.close();
         child1.close();
         child2.close();
+        super.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
         child1.rewind();
         child2.rewind();
+        currLeft = null;
     }
 
     /**
@@ -94,17 +98,23 @@ public class Join extends Operator {
      * <p>
      * For example, if one tuple is {1,2,3} and the other tuple is {1,5,6},
      * joined on equality of the first column, then this returns {1,2,3,1,5,6}.
-     * 
+     *
      * @return The next matching tuple.
      * @see JoinPredicate#filter
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         Tuple left,right;
-        while(child1.hasNext()){
-            left = child1.next();
+        while(currLeft!= null || child1.hasNext()){
+            if (currLeft!=null){
+                left = currLeft;
+            }
+            else{
+                currLeft = child1.next();
+                left = currLeft;
+            }
             while(child2.hasNext()){
                 right = child2.next();
-                if (left.getField(pred.getField1()).compare(pred.getOperator(),right.getField(pred.getField2()))){
+                if (pred.filter(left,right)){
                     Tuple output = new Tuple(getTupleDesc());
                     int j = 0;
                     for (int i = 0; i < left.getTupleDesc().numFields(); i++) {
@@ -116,6 +126,7 @@ public class Join extends Operator {
                     return output;
                 }
             }
+            currLeft = null;
             child2.rewind();
         }
         return null;
