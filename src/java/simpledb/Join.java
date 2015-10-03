@@ -8,25 +8,32 @@ import java.util.*;
 public class Join extends Operator {
 
     private static final long serialVersionUID = 1L;
-
+    private JoinPredicate pred;
+    private DbIterator child1;
+    private DbIterator child2;
+    private DbIterator[] children;
     /**
      * Constructor. Accepts to children to join and the predicate to join them
      * on
      * 
      * @param p
      *            The predicate to use to join the children
-     * @param child1
+     * @param child1_
      *            Iterator for the left(outer) relation to join
-     * @param child2
+     * @param child2_
      *            Iterator for the right(inner) relation to join
      */
-    public Join(JoinPredicate p, DbIterator child1, DbIterator child2) {
-        // some code goes here
+    public Join(JoinPredicate p, DbIterator child1_, DbIterator child2_) {
+        pred = p;
+        child1 = child1_;
+        child2 = child2_;
+        children = new DbIterator[2];
+        children[0] = child1;
+        children[1] = child2;
     }
 
     public JoinPredicate getJoinPredicate() {
-        // some code goes here
-        return null;
+        return pred;
     }
 
     /**
@@ -35,8 +42,7 @@ public class Join extends Operator {
      *       alias or table name.
      * */
     public String getJoinField1Name() {
-        // some code goes here
-        return null;
+        return child1.getTupleDesc().getFieldName(pred.getField1());
     }
 
     /**
@@ -45,8 +51,7 @@ public class Join extends Operator {
      *       alias or table name.
      * */
     public String getJoinField2Name() {
-        // some code goes here
-        return null;
+        return child2.getTupleDesc().getFieldName(pred.getField2());
     }
 
     /**
@@ -54,21 +59,25 @@ public class Join extends Operator {
      *      implementation logic.
      */
     public TupleDesc getTupleDesc() {
-        // some code goes here
-        return null;
+        return TupleDesc.merge(child1.getTupleDesc(),child2.getTupleDesc());
     }
 
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
-        // some code goes here
+        super.open();
+        child1.open();
+        child2.open();
     }
 
     public void close() {
-        // some code goes here
+        super.close();
+        child1.close();
+        child2.close();
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-        // some code goes here
+        child1.rewind();
+        child2.rewind();
     }
 
     /**
@@ -90,19 +99,36 @@ public class Join extends Operator {
      * @see JoinPredicate#filter
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-        // some code goes here
+        Tuple left,right;
+        while(child1.hasNext()){
+            left = child1.next();
+            while(child2.hasNext()){
+                right = child2.next();
+                if (left.getField(pred.getField1()).compare(pred.getOperator(),right.getField(pred.getField2()))){
+                    Tuple output = new Tuple(getTupleDesc());
+                    int j = 0;
+                    for (int i = 0; i < left.getTupleDesc().numFields(); i++) {
+                        output.setField(j++,left.getField(i));
+                    }
+                    for (int i = 0; i < right.getTupleDesc().numFields(); i++) {
+                        output.setField(j++,right.getField(i));
+                    }
+                    return output;
+                }
+            }
+            child2.rewind();
+        }
         return null;
     }
 
     @Override
     public DbIterator[] getChildren() {
-        // some code goes here
-        return null;
+        return children;
     }
 
     @Override
-    public void setChildren(DbIterator[] children) {
-        // some code goes here
+    public void setChildren(DbIterator[] children_) {
+        children = children_;
     }
 
 }
