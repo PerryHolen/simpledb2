@@ -1,11 +1,21 @@
 package simpledb;
 
+import java.util.HashMap;
+
 /**
  * Knows how to compute some aggregate over a set of IntFields.
  */
 public class IntegerAggregator implements Aggregator {
 
     private static final long serialVersionUID = 1L;
+
+    public int gFieldIndex;
+    public Type groupType;
+    public int aFieldIndex;
+    public Op op;
+
+    public HashMap<Field,Integer> groups;
+    public HashMap<Field, Integer> counts;
 
     /**
      * Aggregate constructor
@@ -23,7 +33,12 @@ public class IntegerAggregator implements Aggregator {
      */
 
     public IntegerAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
-        // some code goes here
+        gFieldIndex = gbfield;
+        groupType = gbfieldtype;
+        aFieldIndex = afield;
+        op = what;
+        groups = new HashMap<Field, Integer>();
+        counts = new HashMap<Field, Integer>();
     }
 
     /**
@@ -34,7 +49,51 @@ public class IntegerAggregator implements Aggregator {
      *            the Tuple containing an aggregate field and a group-by field
      */
     public void mergeTupleIntoGroup(Tuple tup) {
-        // some code goes here
+        Field tupleGroupField;
+        if(gFieldIndex == NO_GROUPING){
+            tupleGroupField = null;
+        }
+        else{
+            tupleGroupField = tup.getField(gFieldIndex);
+        }
+
+        if (!groups.containsKey(tupleGroupField)){
+            groups.put(tupleGroupField,0);
+            counts.put(tupleGroupField, 0);
+            if (op == Op.MAX){
+                groups.put(tupleGroupField,Integer.MIN_VALUE);
+            }
+            if (op == Op.MIN){
+                groups.put(tupleGroupField,Integer.MAX_VALUE);
+            }
+        }
+        int oldCount = counts.get(tupleGroupField);
+        counts.put(tupleGroupField,oldCount+1);
+
+        int tupleValue = ((IntField)tup.getField(aFieldIndex)).getValue();
+        int oldValue = groups.get(tupleGroupField);
+        int newValue = oldValue;
+        switch (op){
+            case MAX:
+                newValue = Math.max(tupleValue,oldValue);
+                break;
+            case MIN:
+                newValue = Math.min(tupleValue,oldValue);
+                break;
+            case AVG:
+                newValue = oldValue + tupleValue;
+                break;
+            case SUM:
+                newValue = oldValue + tupleValue;
+                break;
+            case COUNT:
+                newValue = oldValue+1;
+                break;
+            default:
+                break;
+        }
+        groups.put(tupleGroupField,newValue);
+
     }
 
     /**
