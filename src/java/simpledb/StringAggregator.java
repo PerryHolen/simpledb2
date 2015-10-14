@@ -1,5 +1,8 @@
 package simpledb;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+
 /**
  * Knows how to compute some aggregate over a set of StringFields.
  */
@@ -16,8 +19,22 @@ public class StringAggregator implements Aggregator {
      * @throws IllegalArgumentException if what != COUNT
      */
 
+    public int gFieldIndex;
+    public Type groupType;
+    public int aFieldIndex;
+    public Op op;
+
+    public HashMap<Field,Integer> groups;
+
     public StringAggregator(int gbfield, Type gbfieldtype, int afield, Op what) {
-        // some code goes here
+        gFieldIndex = gbfield;
+        groupType = gbfieldtype;
+        aFieldIndex = afield;
+        op = what;
+        if (op!=Op.COUNT){
+            throw new IllegalArgumentException("Only Count is Supported");
+        }
+        groups = new HashMap<Field, Integer>();
     }
 
     /**
@@ -25,7 +42,37 @@ public class StringAggregator implements Aggregator {
      * @param tup the Tuple containing an aggregate field and a group-by field
      */
     public void mergeTupleIntoGroup(Tuple tup) {
-        // some code goes here
+        Field tupleGroupField;
+        if(gFieldIndex == NO_GROUPING){
+            tupleGroupField = null;
+        }
+        else {
+            tupleGroupField = tup.getField(gFieldIndex);
+        }
+
+        if (!groups.containsKey(tupleGroupField)){
+            groups.put(tupleGroupField,1);
+        }
+        else {
+            groups.put(tupleGroupField,groups.get(tupleGroupField) + 1);
+        }
+    }
+
+    private TupleDesc groupTupleDesc()
+    {
+        String[] names;
+        Type[] types;
+        if (gFieldIndex == Aggregator.NO_GROUPING)
+        {
+            names = new String[] {"aggregateValue"};
+            types = new Type[] {Type.INT_TYPE};
+        }
+        else
+        {
+            names = new String[] {"groupValue", "aggregateValue"};
+            types = new Type[] {groupType, Type.INT_TYPE};
+        }
+        return new TupleDesc(types, names);
     }
 
     /**
@@ -37,8 +84,23 @@ public class StringAggregator implements Aggregator {
      *   aggregate specified in the constructor.
      */
     public DbIterator iterator() {
-        // some code goes here
-        throw new UnsupportedOperationException("please implement me for lab2");
-    }
+        ArrayList<Tuple> tuples = new ArrayList<Tuple>();
+        TupleDesc groupDesc = groupTupleDesc();
+        Tuple newTup;
+        int aggregateVal;
+        for (Field g : groups.keySet()){
 
+            aggregateVal = groups.get(g);
+            newTup = new Tuple(groupDesc);
+            if (gFieldIndex == Aggregator.NO_GROUPING){
+                newTup.setField(0, new IntField(aggregateVal));
+            }
+            else{
+                newTup.setField(0,g);
+                newTup.setField(1, new IntField(aggregateVal));
+            }
+            tuples.add(newTup);
+        }
+        return new TupleIterator(groupDesc,tuples);
+    }
 }

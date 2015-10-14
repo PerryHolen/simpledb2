@@ -11,14 +11,22 @@ public class Aggregate extends Operator {
 
     private static final long serialVersionUID = 1L;
 
+    private DbIterator childIt;
+    private int aFieldIndex;
+    private int gFieldIndex;
+    private Aggregator.Op op;
+    private Aggregator aggregator;
+    private DbIterator aggregateIt;
+
+
     /**
      * Constructor.
-     * 
+     *
      * Implementation hint: depending on the type of afield, you will want to
-     * construct an {@link IntAggregator} or {@link StringAggregator} to help
+     * construct an {@link IntegerAggregator} or {@link StringAggregator} to help
      * you with your implementation of readNext().
-     * 
-     * 
+     *
+     *
      * @param child
      *            The DbIterator that is feeding us tuples.
      * @param afield
@@ -30,7 +38,27 @@ public class Aggregate extends Operator {
      *            The aggregation operator to use
      */
     public Aggregate(DbIterator child, int afield, int gfield, Aggregator.Op aop) {
-	// some code goes here
+        childIt = child;
+        aFieldIndex = afield;
+        gFieldIndex = gfield;
+        op = aop;
+        aggregateIt = null;
+
+        Type groupByType;
+        if (gFieldIndex == Aggregator.NO_GROUPING){
+            groupByType = null;
+        }
+        else {
+            groupByType = childIt.getTupleDesc().getFieldType(gFieldIndex);
+        }
+        Type aggregateType = childIt.getTupleDesc().getFieldType(aFieldIndex);
+        if (aggregateType == Type.INT_TYPE){
+            aggregator = new IntegerAggregator(gFieldIndex,groupByType,aFieldIndex,op);
+        }
+        if (aggregateType == Type.STRING_TYPE){
+            aggregator = new StringAggregator(gFieldIndex,groupByType,aFieldIndex,op);
+        }
+
     }
 
     /**
@@ -39,8 +67,7 @@ public class Aggregate extends Operator {
      *         {@link simpledb.Aggregator#NO_GROUPING}
      * */
     public int groupField() {
-	// some code goes here
-	return -1;
+	return gFieldIndex;
     }
 
     /**
@@ -49,16 +76,19 @@ public class Aggregate extends Operator {
      *         null;
      * */
     public String groupFieldName() {
-	// some code goes here
-	return null;
+        if (groupField() == Aggregator.NO_GROUPING){
+            return null;
+        }
+        else{
+            return childIt.getTupleDesc().getFieldName(groupField());
+        }
     }
 
     /**
      * @return the aggregate field
      * */
     public int aggregateField() {
-	// some code goes here
-	return -1;
+	return aFieldIndex;
     }
 
     /**
@@ -66,16 +96,14 @@ public class Aggregate extends Operator {
      *         tuples
      * */
     public String aggregateFieldName() {
-	// some code goes here
-	return null;
+	return childIt.getTupleDesc().getFieldName(aggregateField());
     }
 
     /**
      * @return return the aggregate operator
      * */
     public Aggregator.Op aggregateOp() {
-	// some code goes here
-	return null;
+	return op;
     }
 
     public static String nameOfAggregatorOp(Aggregator.Op aop) {
@@ -84,7 +112,13 @@ public class Aggregate extends Operator {
 
     public void open() throws NoSuchElementException, DbException,
 	    TransactionAbortedException {
-	// some code goes here
+        super.open();
+        childIt.open();
+        while(childIt.hasNext()){
+            aggregator.mergeTupleIntoGroup(childIt.next());
+        }
+        aggregateIt = aggregator.iterator();
+        aggregateIt.open();
     }
 
     /**
@@ -95,12 +129,14 @@ public class Aggregate extends Operator {
      * aggregate. Should return null if there are no more tuples.
      */
     protected Tuple fetchNext() throws TransactionAbortedException, DbException {
-	// some code goes here
-	return null;
+        if (aggregateIt.hasNext()){
+            return aggregateIt.next();
+        }
+        return null;
     }
 
     public void rewind() throws DbException, TransactionAbortedException {
-	// some code goes here
+        aggregateIt.rewind();
     }
 
     /**
@@ -108,7 +144,7 @@ public class Aggregate extends Operator {
      * this will have one field - the aggregate column. If there is a group by
      * field, the first field will be the group by field, and the second will be
      * the aggregate value column.
-     * 
+     *
      * The name of an aggregate column should be informative. For example:
      * "aggName(aop) (child_td.getFieldName(afield))" where aop and afield are
      * given in the constructor, and child_td is the TupleDesc of the child
@@ -116,22 +152,24 @@ public class Aggregate extends Operator {
      */
     public TupleDesc getTupleDesc() {
 	// some code goes here
-	return null;
+	return childIt.getTupleDesc();
     }
 
     public void close() {
-	// some code goes here
+	    super.close();
+        childIt.close();
+        aggregateIt.close();
     }
 
     @Override
     public DbIterator[] getChildren() {
 	// some code goes here
-	return null;
+	return new DbIterator[] {aggregateIt};
     }
 
     @Override
     public void setChildren(DbIterator[] children) {
-	// some code goes here
+	    aggregateIt = children[0];
     }
-    
+
 }

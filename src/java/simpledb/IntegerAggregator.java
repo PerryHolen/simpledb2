@@ -1,5 +1,6 @@
 package simpledb;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
@@ -19,7 +20,7 @@ public class IntegerAggregator implements Aggregator {
 
     /**
      * Aggregate constructor
-     * 
+     *
      * @param gbfield
      *            the 0-based index of the group-by field in the tuple, or
      *            NO_GROUPING if there is no grouping
@@ -44,7 +45,7 @@ public class IntegerAggregator implements Aggregator {
     /**
      * Merge a new tuple into the aggregate, grouping as indicated in the
      * constructor
-     * 
+     *
      * @param tup
      *            the Tuple containing an aggregate field and a group-by field
      */
@@ -96,18 +97,54 @@ public class IntegerAggregator implements Aggregator {
 
     }
 
+    private TupleDesc groupTupleDesc()
+    {
+        String[] names;
+        Type[] types;
+        if (gFieldIndex == Aggregator.NO_GROUPING)
+        {
+            names = new String[] {"aggregateValue"};
+            types = new Type[] {Type.INT_TYPE};
+        }
+        else
+        {
+            names = new String[] {"groupValue", "aggregateValue"};
+            types = new Type[] {groupType, Type.INT_TYPE};
+        }
+        return new TupleDesc(types, names);
+    }
     /**
      * Create a DbIterator over group aggregate results.
-     * 
+     *
      * @return a DbIterator whose tuples are the pair (groupVal, aggregateVal)
      *         if using group, or a single (aggregateVal) if no grouping. The
      *         aggregateVal is determined by the type of aggregate specified in
      *         the constructor.
      */
     public DbIterator iterator() {
-        // some code goes here
-        throw new
-        UnsupportedOperationException("please implement me for lab2");
+        ArrayList<Tuple> tuples = new ArrayList<Tuple>();
+        TupleDesc groupDesc = groupTupleDesc();
+        Tuple newTup;
+        int aggregateVal;
+        for (Field g : groups.keySet()){
+            if (op == Op.AVG){
+                aggregateVal = groups.get(g)/counts.get(g);
+            }
+            else{
+                aggregateVal = groups.get(g);
+            }
+
+            newTup = new Tuple(groupDesc);
+            if (gFieldIndex == Aggregator.NO_GROUPING){
+                newTup.setField(0, new IntField(aggregateVal));
+            }
+            else{
+                newTup.setField(0,g);
+                newTup.setField(1, new IntField(aggregateVal));
+            }
+            tuples.add(newTup);
+        }
+        return new TupleIterator(groupDesc,tuples);
     }
 
 }
