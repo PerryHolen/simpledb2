@@ -2,6 +2,7 @@ package simpledb;
 
 import java.io.*;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -143,8 +144,12 @@ public class BufferPool {
      */
     public void insertTuple(TransactionId tid, int tableId, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        // not necessary for lab1
+        DbFile dbf = Database.getCatalog().getDatabaseFile(tableId);
+        ArrayList<Page> modified = dbf.insertTuple(tid, t);
+        for (Page p : modified){
+            p.markDirty(true,tid);
+            pool.put(p.getId(),p);
+        }
     }
 
     /**
@@ -159,11 +164,16 @@ public class BufferPool {
      * @param tid the transaction deleting the tuple.
      * @param t the tuple to delete
      */
-    public  void deleteTuple(TransactionId tid, Tuple t)
+    public void deleteTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
-        // some code goes here
-        // not necessary for lab1
-    }
+            DbFile dbf = Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId());
+            ArrayList<Page> modified = dbf.deleteTuple(tid,t);
+            for (Page p : modified){
+                p.markDirty(true,tid);
+                pool.put(p.getId(),p);
+            }
+        }
+
 
     /**
      * Flush all dirty pages to disk.
