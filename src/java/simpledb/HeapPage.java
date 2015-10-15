@@ -251,6 +251,7 @@ public class HeapPage implements Page {
             throw new DbException("Slot Already Empty");
         }
         markSlotUsed(slot,false);
+        tuples[slot]=null;
     }
 
     /**
@@ -349,21 +350,26 @@ public class HeapPage implements Page {
     public Iterator<Tuple> iterator() {
         return new Iterator<Tuple>() {
 
-            int tuplePos =0;
+            private int curPos = 0;
+
             @Override
             public boolean hasNext() {
-                return tuplePos<(getNumTuples()-getNumEmptySlots());
+                for (;curPos < numSlots; curPos++) {
+                    if (tuples[curPos] != null) {
+                        return true;
+                    }
+                }
+                return false;
             }
 
             @Override
             public Tuple next() {
-
-                if (hasNext()){
-                    return tuples[tuplePos++];
+                for (;curPos < numSlots; curPos++) {
+                    if (tuples[curPos] != null) {
+                        return tuples[curPos++];
+                    }
                 }
-                else {
-                    return null;
-                }
+                return null;
             }
 
             @Override
