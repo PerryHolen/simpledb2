@@ -1,9 +1,9 @@
 package simpledb;
 
+import javax.xml.crypto.Data;
 import java.io.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -77,7 +77,7 @@ public class BufferPool {
         if (p==null){
             p = Database.getCatalog().getDatabaseFile(pid.getTableId()).readPage(pid);
             if (pool.size()>maxPages){
-                throw new DbException("Too many pages");
+                evictPage();
             }
             pool.put(pid,p);
         }
@@ -167,7 +167,7 @@ public class BufferPool {
     public void deleteTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
             DbFile dbf = Database.getCatalog().getDatabaseFile(t.getRecordId().getPageId().getTableId());
-            ArrayList<Page> modified = dbf.deleteTuple(tid,t);
+            ArrayList<Page> modified = dbf.deleteTuple(tid, t);
             for (Page p : modified){
                 p.markDirty(true,tid);
                 pool.put(p.getId(),p);
@@ -181,9 +181,9 @@ public class BufferPool {
      *     break simpledb if running in NO STEAL mode.
      */
     public synchronized void flushAllPages() throws IOException {
-        // some code goes here
-        // not necessary for lab1
-
+        for (PageId p : pool.keySet()){
+            flushPage(p);
+        }
     }
 
     /** Remove the specific page id from the buffer pool.
@@ -201,8 +201,13 @@ public class BufferPool {
      * @param pid an ID indicating the page to flush
      */
     private synchronized  void flushPage(PageId pid) throws IOException {
-        // some code goes here
-        // not necessary for lab1
+        Page flush = pool.get(pid);
+        TransactionId dirtyTid = flush.isDirty();
+        if (dirtyTid!= null){
+            Database.getCatalog().getDatabaseFile(pid.getTableId()).writePage(flush);
+            flush.markDirty(false,dirtyTid);
+
+        }
     }
 
     /** Write all pages of the specified transaction to disk.
@@ -217,8 +222,16 @@ public class BufferPool {
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
     private synchronized  void evictPage() throws DbException {
-        // some code goes here
-        // not necessary for lab1
+
+        List<PageId> keySet = new ArrayList<PageId>(pool.keySet());
+        int flushIndex = (int) Math.random() % keySet.size();
+        PageId flushId = keySet.get(flushIndex);
+        try {
+            flushPage(flushId);
+            pool.remove(flushId);
+        } catch (IOException e) {
+            throw new DbException("IO exception on Eviction");
+        }
     }
 
 }
